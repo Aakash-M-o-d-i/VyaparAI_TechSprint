@@ -87,9 +87,8 @@ function LandingPage() {
                         🎤 {t('speakOffer')}
                     </button>
                     <button
-                        className="btn btn--xl btn--outline btn--full"
+                        className="btn btn--xl btn--glass btn--full"
                         onClick={handleTypeOffer}
-                        style={{ background: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.5)', color: 'white' }}
                     >
                         ⌨️ {t('typeOffer')}
                     </button>
