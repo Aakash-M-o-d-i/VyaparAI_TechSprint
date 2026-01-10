@@ -1,166 +1,99 @@
-# VyaparAI 🛒
+# VyaparAI
 
-**AI Marketing Assistant for Local Businesses**
+## Empowering Local Businesses with AI Marketing
 
-VyaparAI helps local Indian business owners create AI-powered promotional posters and marketing messages using voice or text input, in their preferred regional language. No English needed. No designer needed.
+VyaparAI is an AI-powered marketing assistant designed specifically for local business owners in India. It enables users to create professional promotional material and social media content using simple voice or text commands in their preferred regional language.
 
-## 🌟 Features
+## The Problem
 
-- **Voice-First Input**: Speak your offer naturally in Hindi, Tamil, Telugu, or English
-- **AI-Powered Understanding**: Gemini AI extracts product details, pricing, and offers
-- **Automatic Poster Generation**: Creates professional promotional posters using AI
-- **Multi-Platform Sharing**: One-tap sharing to WhatsApp, Instagram, and Facebook
-- **Auto-Generated Captions**: Platform-specific captions in the user's language
-- **Multi-Language Support**: Full support for English, Hindi (हिंदी), Tamil (தமிழ்), Telugu (తెలుగు)
-- **Mobile-First Design**: Optimized for mobile devices and first-time digital users
+Small business owners—including kirana store owners, street vendors, and local service providers—often struggle with professional marketing due to:
+- Language barriers (difficulty creating content in English)
+- Technical complexity of modern design tools
+- High costs associated with hiring professional designers
+- Limited time to manage digital presence
 
-## 📱 Pages
+## The Solution
 
-1. **Landing Page** (`/`) - Welcome screen with language selection
-2. **Login Page** (`/login`) - Google Sign-in and Phone OTP authentication
-3. **Dashboard** (`/dashboard`) - User's shop overview with past promotions
-4. **Start Promotion** (`/start`) - Voice or text input for offers
-5. **AI Confirmation** (`/confirm`) - Review AI-extracted details
-6. **Style Selection** (`/style`) - Choose promotion mood (Friendly, Festive, etc.)
-7. **Result Page** (`/result`) - View generated poster and captions
-8. **Share Page** (`/share`) - One-tap sharing to social platforms
+VyaparAI bridges the digital divide by offering a voice-first, multi-lingual platform that automates the creative process. A shop owner can simply speak their offer in their native language, and the system handles the extraction of details, design of the poster, and generation of social media captions.
 
-## 🛠️ Tech Stack
+## Core Features
 
-- **Frontend**: React 18 + Vite
-- **Styling**: Custom CSS with modern design system
-- **Authentication**: Firebase Authentication (Google + Phone OTP)
-- **Database**: Firebase Firestore
-- **AI Engine**: Google Gemini API (Text + Image Generation)
-- **Hosting**: Firebase Hosting (recommended)
+- Voice-First Input: Support for Hindi, Tamil, Telugu, and English, allowing for natural interaction.
+- AI Understanding: Utilizes Google Gemini AI to accurately extract product names, prices, and offer details from natural speech.
+- Automated Design: Generates professional-grade promotional posters based on extracted data.
+- Social Connectivity: One-tap sharing to platforms like WhatsApp, Instagram, and Facebook.
+- Localized Experience: Completely localized UI and auto-generated captions in the user's chosen language.
 
-## 🚀 Getting Started
+## Technical Architecture
+
+### Frontend
+- React 18: Core library for building the user interface.
+- Vite: Lightning-fast build tool and development server.
+- Custom CSS: A hand-crafted design system focused on mobile-first accessibility and premium aesthetics.
+
+### Backend and Infrastructure
+- Firebase Authentication: Secure login via Google and Phone OTP.
+- Firebase Firestore: Scalable NoSQL database for storing user profiles and promotion history.
+- Web Speech API: Real-time voice-to-text processing for intuitive input.
+
+### Artificial Intelligence
+- Google Gemini API: Performs complex natural language understanding and governs the content generation logic.
+
+## Environment Setup
 
 ### Prerequisites
+- Node.js (version 18 or higher)
+- App-level API keys for Firebase and Google AI Studio
 
-- Node.js 18+
-- npm or yarn
-- Firebase project with Authentication and Firestore enabled
-- Google AI Studio API key for Gemini
+### Installation Steps
 
-### Installation
-
-1. Clone the repository:
-   ```bash
-   cd vyaparai
-   ```
-
+1. Clone the repository and navigate to the project folder.
 2. Install dependencies:
    ```bash
    npm install
    ```
-
-3. Create a `.env` file with your credentials:
-   ```env
-   VITE_FIREBASE_API_KEY=your_firebase_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
-   VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
-   VITE_GEMINI_API_KEY=your_gemini_api_key
-   ```
-
-4. Start the development server:
+3. Configure environment variables:
+   - Copy `.env.example` to a new file named `.env`
+   - Fill in your Firebase configuration and Gemini API key.
+4. Launch the development server:
    ```bash
    npm run dev
    ```
 
-5. Open http://localhost:5173 in your browser
+## Project Directory Structure
 
-## 📁 Project Structure
-
-```
+```text
 vyaparai/
-├── public/
-│   └── manifest.json       # PWA manifest
 ├── src/
-│   ├── components/
-│   │   └── ProtectedRoute.jsx
-│   ├── config/
-│   │   ├── firebase.js     # Firebase configuration
-│   │   └── gemini.js       # Gemini AI configuration
-│   ├── contexts/
-│   │   ├── AuthContext.jsx     # Authentication state
-│   │   ├── LanguageContext.jsx # Multi-language support
-│   │   └── PromotionContext.jsx# Promotion workflow state
-│   ├── locales/
-│   │   └── translations.js # All UI translations
-│   ├── pages/
-│   │   ├── LandingPage.jsx
-│   │   ├── LoginPage.jsx
-│   │   ├── DashboardPage.jsx
-│   │   ├── StartPage.jsx
-│   │   ├── ConfirmPage.jsx
-│   │   ├── StylePage.jsx
-│   │   ├── ResultPage.jsx
-│   │   └── SharePage.jsx
-│   ├── services/
-│   │   ├── aiService.js    # Gemini API integration
-│   │   └── speechService.js# Web Speech API
-│   ├── App.jsx
-│   ├── main.jsx
-│   └── index.css           # Global styles
-├── index.html
-├── package.json
-└── vite.config.js
+│   ├── components/      # Reusable UI components (TopBar, ProgressIndicator, etc.)
+│   ├── config/          # Configuration files for Firebase and Gemini AI
+│   ├── contexts/        # React Contexts for Auth, Language, and Promotions
+│   ├── locales/         # Multi-language translation dictionaries
+│   ├── pages/           # Screen components for each step of the user journey
+│   ├── services/        # Logic for AI integration and Web Speech API
+│   ├── index.css        # Global styles and design system tokens
+│   ├── App.jsx          # Main application routing and providers
+│   └── main.jsx         # Application entry point
+├── public/              # Static assets and PWA manifest
+├── .env.example         # Template for environment variables
+├── .gitignore           # Git exclusion rules
+├── package.json         # Project dependencies and scripts
+└── vite.config.js       # Vite build configuration
 ```
 
-## 🎨 Design System
+### Key Modules
+- **src/contexts**: Manages global state including user sessions, language preferences, and the multi-step promotion creation data.
+- **src/services/aiService.js**: Interfaces with the Google Gemini API for natural language extraction and creative content generation.
+- **src/services/speechService.js**: Encapsulates the Web Speech API for seamless voice-to-text functionality.
+- **src/locales/translations.js**: Centralized repository for all UI strings across support languages.
 
-The app uses a custom CSS design system with:
+## Impact and Future Scope
 
-- **Colors**: Warm orange primary palette with purple accents
-- **Typography**: Inter font family
-- **Components**: Cards, buttons, inputs with consistent styling
-- **Animations**: Micro-animations for enhanced UX
-- **Responsive**: Mobile-first design
+VyaparAI aims to democratize professional marketing for millions of small businesses. Future developments include:
+- Support for more regional Indian dialects.
+- Advanced AI image generation for product-specific visuals.
+- Direct integration with local advertising networks.
 
-## 🔐 Firebase Setup
+## License
 
-1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
-2. Enable Authentication providers:
-   - Google Sign-In
-   - Phone Authentication
-3. Create a Firestore database
-4. Add your web app and copy the configuration
-
-## 🤖 Gemini API Setup
-
-1. Get an API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Enable the Gemini Pro models
-3. Add the API key to your `.env` file
-
-## 📱 Languages Supported
-
-| Language | Code | Display Name |
-|----------|------|--------------|
-| English  | en   | English      |
-| Hindi    | hi   | हिंदी         |
-| Tamil    | ta   | தமிழ்        |
-| Telugu   | te   | తెలుగు       |
-
-## 🎯 Target Users
-
-- Local shop owners (juice shops, kirana stores, salons, cafés)
-- Street vendors and small business owners
-- Users with low or no English proficiency
-- First-time web or smartphone users
-
-## 📄 License
-
-MIT License
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-Built with ❤️ for local Indian businesses
+This project is licensed under the MIT License.
