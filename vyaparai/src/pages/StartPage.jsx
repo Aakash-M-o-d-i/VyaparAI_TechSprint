@@ -1,12 +1,11 @@
 /**
  * Start Promotion Page Component
- * Voice-first input with text fallback
+ * Voice-first input with text fallback - Uses Groq Whisper for transcription
  */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePromotion } from '../contexts/PromotionContext';
-import { speechService } from '../services/speechService';
 import { audioRecordingService } from '../services/audioRecordingService';
 import ProgressIndicator from '../components/ProgressIndicator';
 import TopBar from '../components/TopBar';
@@ -14,66 +13,24 @@ import TopBar from '../components/TopBar';
 function StartPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { t, language, getSpeechLanguageCode } = useLanguage();
+    const { t, language } = useLanguage();
     const { updatePromotionData } = usePromotion();
 
     const [inputText, setInputText] = useState('');
     const [isListening, setIsListening] = useState(false);
-    const [interimTranscript, setInterimTranscript] = useState('');
     const [error, setError] = useState('');
     const [showTextInput, setShowTextInput] = useState(false);
-    const [useGeminiTranscription, setUseGeminiTranscription] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
 
     const inputMethod = location.state?.method || 'voice';
     const textInputRef = useRef(null);
-    const networkErrorCount = useRef(0);
 
     useEffect(() => {
         if (inputMethod === 'text') {
             setShowTextInput(true);
         }
 
-        // Initialize speech service with current language
-        if (speechService.isSupported()) {
-            const currentSpeechLang = getSpeechLanguageCode();
-            speechService.init(currentSpeechLang);
-            speechService.setCallbacks({
-                onStart: () => {
-                    setIsListening(true);
-                    setError('');
-                },
-                onResult: (transcript, isFinal) => {
-                    if (isFinal) {
-                        setInputText(prev => prev + (prev ? ' ' : '') + transcript);
-                        setInterimTranscript('');
-                        networkErrorCount.current = 0; // Reset on success
-                    } else {
-                        setInterimTranscript(transcript);
-                    }
-                },
-                onError: (errorMessage) => {
-                    setIsListening(false);
-                    // Check for network error - switch to Gemini fallback
-                    if (errorMessage.includes('Network error') || errorMessage.includes('network')) {
-                        networkErrorCount.current++;
-                        if (networkErrorCount.current >= 2) {
-                            // Switch to Gemini transcription after 2 network errors
-                            setUseGeminiTranscription(true);
-                            setError('Switching to AI transcription mode (more reliable)...');
-                            setTimeout(() => setError(''), 2000);
-                            return;
-                        }
-                    }
-                    setError(errorMessage);
-                },
-                onEnd: () => {
-                    setIsListening(false);
-                }
-            });
-        }
-
-        // Initialize Gemini audio recording service
+        // Initialize Groq Whisper audio recording service
         if (audioRecordingService.isSupported()) {
             audioRecordingService.setCallbacks({
                 onStart: () => {
@@ -94,49 +51,31 @@ function StartPage() {
                 },
                 onEnd: () => {
                     setIsListening(false);
-                    setIsProcessing(true); // Show processing state while Gemini transcribes
+                    setIsProcessing(true); // Show processing state while Groq transcribes
                 }
             });
         }
 
         return () => {
-            speechService.stop();
             audioRecordingService.stop();
         };
-    }, [inputMethod, language, getSpeechLanguageCode]);
+    }, [inputMethod, language]);
 
     const handleVoiceStart = () => {
-        // Use Gemini transcription if Web Speech API keeps failing
-        if (useGeminiTranscription) {
-            if (!audioRecordingService.isSupported()) {
-                setError('Audio recording not supported. Please use text input.');
-                setShowTextInput(true);
-                return;
-            }
-
-            if (isListening) {
-                audioRecordingService.stop();
-            } else {
-                setError('');
-                audioRecordingService.start();
-            }
-            return;
-        }
-
-        // Try Web Speech API first
-        if (!speechService.isSupported()) {
-            setError('Voice input is not supported in your browser. Please use text input.');
+        if (!audioRecordingService.isSupported()) {
+            setError('Audio recording not supported. Please use text input.');
             setShowTextInput(true);
             return;
         }
 
         if (isListening) {
-            speechService.stop();
+            audioRecordingService.stop();
         } else {
             setError('');
-            speechService.start(getSpeechLanguageCode());
+            audioRecordingService.start();
         }
     };
+
 
     const handleContinue = () => {
         if (!inputText.trim()) {
@@ -159,7 +98,7 @@ function StartPage() {
     const toggleInputMethod = () => {
         setShowTextInput(!showTextInput);
         if (!showTextInput) {
-            speechService.stop();
+            audioRecordingService.stop();
             setIsListening(false);
             setTimeout(() => textInputRef.current?.focus(), 100);
         }
@@ -220,59 +159,65 @@ function StartPage() {
                         }}>
                             {isProcessing ? '✨ AI is transcribing...' : isListening ? t('listening') : t('tapToSpeak')}
                         </p>
-                        {/* Language / Mode Indicator Badge */}
+                        {/* Groq Whisper Mode Indicator */}
                         <div style={{
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '6px',
                             marginTop: '12px',
                             padding: '6px 12px',
-                            background: useGeminiTranscription ? 'linear-gradient(135deg, rgba(66, 133, 244, 0.15), rgba(155, 114, 203, 0.15))' : 'var(--bg-secondary)',
+                            background: 'linear-gradient(135deg, rgba(66, 133, 244, 0.15), rgba(155, 114, 203, 0.15))',
                             borderRadius: '20px',
                             fontSize: '0.85rem',
-                            color: useGeminiTranscription ? 'var(--primary-600)' : 'var(--text-secondary)'
+                            color: 'var(--primary-600)'
                         }}>
-                            <span>{useGeminiTranscription ? '✨' : '🌐'}</span>
+                            <span>✨</span>
                             <span>
-                                {useGeminiTranscription
-                                    ? 'AI Mode (Gemini)'
-                                    : language === 'hi' ? 'हिंदी में बोलें' : language === 'ta' ? 'தமிழில் பேசுங்கள்' : 'Speak in English'}
+                                {language === 'hi' ? 'AI मोड (हिंदी)' : language === 'ta' ? 'AI பயன்முறை (தமிழ்)' : 'AI Mode (Groq Whisper)'}
                             </span>
                         </div>
-                        {/* Tip for AI mode */}
-                        {useGeminiTranscription && (
-                            <p style={{
-                                marginTop: '8px',
-                                fontSize: '0.75rem',
-                                color: 'var(--text-muted)'
-                            }}>
-                                Tap mic → Speak → Tap again to transcribe
-                            </p>
-                        )}
+                        <p style={{
+                            marginTop: '8px',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-muted)'
+                        }}>
+                            Tap mic → Speak → Tap again to transcribe
+                        </p>
                     </div>
                 )}
 
                 {/* Transcript Display */}
-                {(inputText || interimTranscript) && (
-                    <div className="card" style={{
-                        width: '100%',
-                        maxWidth: '320px',
-                        textAlign: 'center',
-                        minHeight: '80px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        <p style={{
-                            fontSize: '1.1rem',
-                            lineHeight: '1.5',
-                            color: interimTranscript ? 'var(--text-muted)' : 'var(--text-primary)'
+                {inputText && (
+                    <div style={{ width: '100%', maxWidth: '320px' }}>
+                        <div className="card" style={{
+                            textAlign: 'center',
+                            minHeight: '80px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                         }}>
-                            {inputText}
-                            {interimTranscript && (
-                                <span style={{ opacity: 0.5 }}> {interimTranscript}</span>
-                            )}
-                        </p>
+                            <p style={{
+                                fontSize: '1.1rem',
+                                lineHeight: '1.5',
+                                color: 'var(--text-primary)'
+                            }}>
+                                {inputText}
+                            </p>
+                        </div>
+                        {/* Re-speak Button */}
+                        <button
+                            className="btn btn--ghost btn--sm btn--full"
+                            onClick={() => {
+                                audioRecordingService.stop();
+                                setInputText('');
+                                setError('');
+                                setIsProcessing(false);
+                                setIsListening(false);
+                            }}
+                            style={{ marginTop: '8px' }}
+                        >
+                            🔄 Re-speak / Clear
+                        </button>
                     </div>
                 )}
 
@@ -305,26 +250,12 @@ function StartPage() {
                         </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
-                        <button
-                            className="btn btn--secondary"
-                            onClick={toggleInputMethod}
-                        >
-                            ⌨️ {t('typeOffer')}
-                        </button>
-                        {!useGeminiTranscription && (
-                            <button
-                                className="btn btn--ghost btn--sm"
-                                onClick={() => {
-                                    setUseGeminiTranscription(true);
-                                    setError('');
-                                }}
-                                style={{ fontSize: '0.8rem' }}
-                            >
-                                ✨ Use AI Mode (if voice not working)
-                            </button>
-                        )}
-                    </div>
+                    <button
+                        className="btn btn--secondary"
+                        onClick={toggleInputMethod}
+                    >
+                        ⌨️ {t('typeOffer')}
+                    </button>
                 )}
             </div>
 

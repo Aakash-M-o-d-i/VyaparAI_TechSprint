@@ -1,6 +1,6 @@
 /**
  * Audio Recording Service
- * Records audio using MediaRecorder API and transcribes using Gemini
+ * Records audio using MediaRecorder API and transcribes using Groq Whisper
  * Fallback for when Web Speech API doesn't work
  */
 
@@ -85,8 +85,8 @@ class AudioRecordingService {
                     this.stream.getTracks().forEach(track => track.stop());
                 }
 
-                // Transcribe audio using Gemini
-                await this.transcribeWithGemini(audioBlob);
+                // Transcribe audio using Groq Whisper
+                await this.transcribeWithGroq(audioBlob);
 
                 if (this.onEnd) this.onEnd();
             };
@@ -125,61 +125,43 @@ class AudioRecordingService {
     }
 
     /**
-     * Transcribe audio using Gemini API
+     * Transcribe using Groq Whisper API (FREE!)
+     * Supports 50+ languages including Hindi and Tamil
      */
-    async transcribeWithGemini(audioBlob) {
-        try {
-            const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-            if (!apiKey) {
-                throw new Error('Gemini API key not configured');
+    async transcribeWithGroq(audioBlob) {
+        const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+
+        if (!apiKey) {
+            if (this.onError) {
+                this.onError('Groq API key not configured. Please add VITE_GROQ_API_KEY to .env');
             }
+            return;
+        }
 
-            // Convert blob to base64
-            const base64Audio = await this.blobToBase64(audioBlob);
-            const base64Data = base64Audio.split(',')[1]; // Remove data URL prefix
+        try {
+            // Create form data with audio file
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'audio.webm');
+            formData.append('model', 'whisper-large-v3');
+            formData.append('response_format', 'json');
 
-            // Determine MIME type
-            const mimeType = audioBlob.type || 'audio/webm';
-
-            // Call Gemini API for transcription
-            const response = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                {
-                                    text: "Transcribe this audio exactly as spoken. Only output the transcription, nothing else. If it's in Hindi, Tamil, or any other language, transcribe it in that language. If no speech is detected, respond with '[no speech detected]'."
-                                },
-                                {
-                                    inline_data: {
-                                        mime_type: mimeType,
-                                        data: base64Data
-                                    }
-                                }
-                            ]
-                        }],
-                        generationConfig: {
-                            temperature: 0.1,
-                            maxOutputTokens: 500
-                        }
-                    })
-                }
-            );
+            const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: formData
+            });
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error?.message || 'Transcription failed');
+                throw new Error(errorData.error?.message || 'Groq transcription failed');
             }
 
             const data = await response.json();
-            const transcription = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+            const transcription = data.text?.trim();
 
-            if (transcription && transcription !== '[no speech detected]') {
+            if (transcription) {
                 if (this.onResult) {
                     this.onResult(transcription, true);
                 }
@@ -195,18 +177,6 @@ class AudioRecordingService {
                 this.onError('Transcription failed: ' + err.message);
             }
         }
-    }
-
-    /**
-     * Convert blob to base64
-     */
-    blobToBase64(blob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
     }
 
     /**
