@@ -7,6 +7,7 @@ class SpeechService {
     constructor() {
         this.recognition = null;
         this.isListening = false;
+        this.currentLanguage = null;
         this.onResult = null;
         this.onError = null;
         this.onStart = null;
@@ -28,6 +29,9 @@ class SpeechService {
             console.warn('Speech recognition not supported');
             return false;
         }
+
+        // Store current language
+        this.currentLanguage = languageCode;
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         this.recognition = new SpeechRecognition();
@@ -68,10 +72,34 @@ class SpeechService {
                         errorMessage = 'Microphone not found or not working.';
                         break;
                     case 'not-allowed':
-                        errorMessage = 'Microphone permission denied.';
+                        errorMessage = 'Microphone permission denied. Please allow microphone access.';
                         break;
                     case 'network':
-                        errorMessage = 'Network error. Please check your connection.';
+                        // Network error - usually means Google's speech servers are unreachable
+                        // or the browser requires HTTPS for speech recognition
+                        errorMessage = 'Network error. Trying to reconnect... (Speech requires internet connection)';
+                        // Auto-retry after a short delay
+                        setTimeout(() => {
+                            if (!this.isListening) {
+                                console.log('Auto-retrying speech recognition...');
+                                this.recognition = null;
+                                this.init(this.currentLanguage);
+                                // Restore callbacks
+                                const callbacks = {
+                                    onResult: this.onResult,
+                                    onError: this.onError,
+                                    onStart: this.onStart,
+                                    onEnd: this.onEnd
+                                };
+                                this.setCallbacks(callbacks);
+                            }
+                        }, 1000);
+                        break;
+                    case 'aborted':
+                        errorMessage = 'Speech recognition was cancelled.';
+                        break;
+                    case 'service-not-allowed':
+                        errorMessage = 'Speech service not available. Try using Chrome browser.';
                         break;
                     default:
                         errorMessage = `Error: ${event.error}`;
@@ -89,13 +117,44 @@ class SpeechService {
     }
 
     /**
+     * Change language - reinitializes recognition with new language
+     * Some browsers require recreating the recognition instance for language changes
+     */
+    changeLanguage(languageCode) {
+        if (this.currentLanguage === languageCode) {
+            return; // No change needed
+        }
+
+        console.log(`Changing speech language from ${this.currentLanguage} to ${languageCode}`);
+
+        // Stop current recognition if running
+        if (this.isListening) {
+            this.stop();
+        }
+
+        // Preserve callbacks
+        const savedCallbacks = {
+            onResult: this.onResult,
+            onError: this.onError,
+            onStart: this.onStart,
+            onEnd: this.onEnd
+        };
+
+        // Reinitialize with new language
+        this.recognition = null;
+        this.init(languageCode);
+
+        // Restore callbacks
+        this.setCallbacks(savedCallbacks);
+    }
+
+    /**
      * Start listening
      */
     start(languageCode) {
-        if (!this.recognition) {
-            this.init(languageCode);
-        } else {
-            this.recognition.lang = languageCode;
+        // If language changed, reinitialize the recognition
+        if (!this.recognition || this.currentLanguage !== languageCode) {
+            this.changeLanguage(languageCode);
         }
 
         if (this.recognition && !this.isListening) {

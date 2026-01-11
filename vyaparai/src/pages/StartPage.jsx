@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { usePromotion } from '../contexts/PromotionContext';
 import { speechService } from '../services/speechService';
+import { audioRecordingService } from '../services/audioRecordingService';
 import ProgressIndicator from '../components/ProgressIndicator';
 import TopBar from '../components/TopBar';
 
@@ -21,18 +22,22 @@ function StartPage() {
     const [interimTranscript, setInterimTranscript] = useState('');
     const [error, setError] = useState('');
     const [showTextInput, setShowTextInput] = useState(false);
+    const [useGeminiTranscription, setUseGeminiTranscription] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const inputMethod = location.state?.method || 'voice';
     const textInputRef = useRef(null);
+    const networkErrorCount = useRef(0);
 
     useEffect(() => {
         if (inputMethod === 'text') {
             setShowTextInput(true);
         }
 
-        // Initialize speech service
+        // Initialize speech service with current language
         if (speechService.isSupported()) {
-            speechService.init(getSpeechLanguageCode());
+            const currentSpeechLang = getSpeechLanguageCode();
+            speechService.init(currentSpeechLang);
             speechService.setCallbacks({
                 onStart: () => {
                     setIsListening(true);
@@ -42,13 +47,25 @@ function StartPage() {
                     if (isFinal) {
                         setInputText(prev => prev + (prev ? ' ' : '') + transcript);
                         setInterimTranscript('');
+                        networkErrorCount.current = 0; // Reset on success
                     } else {
                         setInterimTranscript(transcript);
                     }
                 },
                 onError: (errorMessage) => {
-                    setError(errorMessage);
                     setIsListening(false);
+                    // Check for network error - switch to Gemini fallback
+                    if (errorMessage.includes('Network error') || errorMessage.includes('network')) {
+                        networkErrorCount.current++;
+                        if (networkErrorCount.current >= 2) {
+                            // Switch to Gemini transcription after 2 network errors
+                            setUseGeminiTranscription(true);
+                            setError('Switching to AI transcription mode (more reliable)...');
+                            setTimeout(() => setError(''), 2000);
+                            return;
+                        }
+                    }
+                    setError(errorMessage);
                 },
                 onEnd: () => {
                     setIsListening(false);
@@ -56,12 +73,57 @@ function StartPage() {
             });
         }
 
+        // Initialize Gemini audio recording service
+        if (audioRecordingService.isSupported()) {
+            audioRecordingService.setCallbacks({
+                onStart: () => {
+                    setIsListening(true);
+                    setIsProcessing(false);
+                    setError('');
+                },
+                onResult: (transcript, isFinal) => {
+                    if (isFinal) {
+                        setInputText(prev => prev + (prev ? ' ' : '') + transcript);
+                        setIsProcessing(false);
+                    }
+                },
+                onError: (errorMessage) => {
+                    setError(errorMessage);
+                    setIsListening(false);
+                    setIsProcessing(false);
+                },
+                onEnd: () => {
+                    setIsListening(false);
+                    setIsProcessing(true); // Show processing state while Gemini transcribes
+                }
+            });
+        }
+
         return () => {
             speechService.stop();
+            audioRecordingService.stop();
         };
-    }, [inputMethod]);
+    }, [inputMethod, language, getSpeechLanguageCode]);
 
     const handleVoiceStart = () => {
+        // Use Gemini transcription if Web Speech API keeps failing
+        if (useGeminiTranscription) {
+            if (!audioRecordingService.isSupported()) {
+                setError('Audio recording not supported. Please use text input.');
+                setShowTextInput(true);
+                return;
+            }
+
+            if (isListening) {
+                audioRecordingService.stop();
+            } else {
+                setError('');
+                audioRecordingService.start();
+            }
+            return;
+        }
+
+        // Try Web Speech API first
         if (!speechService.isSupported()) {
             setError('Voice input is not supported in your browser. Please use text input.');
             setShowTextInput(true);
@@ -142,21 +204,51 @@ function StartPage() {
                 {!showTextInput && (
                     <div style={{ textAlign: 'center' }}>
                         <button
-                            className={`btn--voice ${isListening ? 'listening' : ''}`}
+                            className={`btn--voice ${isListening ? 'listening' : ''} ${isProcessing ? 'processing' : ''}`}
                             onClick={handleVoiceStart}
+                            disabled={isProcessing}
                         >
                             <span className={`mic-icon ${isListening ? 'mic-icon--active' : ''}`}>
-                                {isListening ? '🔴' : '🎤'}
+                                {isProcessing ? '⏳' : isListening ? '🔴' : '🎤'}
                             </span>
                         </button>
                         <p style={{
                             marginTop: '16px',
-                            color: isListening ? 'var(--primary-600)' : 'var(--text-muted)',
-                            fontWeight: isListening ? '600' : '400',
+                            color: isProcessing ? 'var(--primary-500)' : isListening ? 'var(--primary-600)' : 'var(--text-muted)',
+                            fontWeight: isListening || isProcessing ? '600' : '400',
                             fontSize: '1rem'
                         }}>
-                            {isListening ? t('listening') : t('tapToSpeak')}
+                            {isProcessing ? '✨ AI is transcribing...' : isListening ? t('listening') : t('tapToSpeak')}
                         </p>
+                        {/* Language / Mode Indicator Badge */}
+                        <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            marginTop: '12px',
+                            padding: '6px 12px',
+                            background: useGeminiTranscription ? 'linear-gradient(135deg, rgba(66, 133, 244, 0.15), rgba(155, 114, 203, 0.15))' : 'var(--bg-secondary)',
+                            borderRadius: '20px',
+                            fontSize: '0.85rem',
+                            color: useGeminiTranscription ? 'var(--primary-600)' : 'var(--text-secondary)'
+                        }}>
+                            <span>{useGeminiTranscription ? '✨' : '🌐'}</span>
+                            <span>
+                                {useGeminiTranscription
+                                    ? 'AI Mode (Gemini)'
+                                    : language === 'hi' ? 'हिंदी में बोलें' : language === 'ta' ? 'தமிழில் பேசுங்கள்' : 'Speak in English'}
+                            </span>
+                        </div>
+                        {/* Tip for AI mode */}
+                        {useGeminiTranscription && (
+                            <p style={{
+                                marginTop: '8px',
+                                fontSize: '0.75rem',
+                                color: 'var(--text-muted)'
+                            }}>
+                                Tap mic → Speak → Tap again to transcribe
+                            </p>
+                        )}
                     </div>
                 )}
 
@@ -213,12 +305,26 @@ function StartPage() {
                         </button>
                     </div>
                 ) : (
-                    <button
-                        className="btn btn--secondary"
-                        onClick={toggleInputMethod}
-                    >
-                        ⌨️ {t('typeOffer')}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center' }}>
+                        <button
+                            className="btn btn--secondary"
+                            onClick={toggleInputMethod}
+                        >
+                            ⌨️ {t('typeOffer')}
+                        </button>
+                        {!useGeminiTranscription && (
+                            <button
+                                className="btn btn--ghost btn--sm"
+                                onClick={() => {
+                                    setUseGeminiTranscription(true);
+                                    setError('');
+                                }}
+                                style={{ fontSize: '0.8rem' }}
+                            >
+                                ✨ Use AI Mode (if voice not working)
+                            </button>
+                        )}
+                    </div>
                 )}
             </div>
 
